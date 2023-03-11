@@ -1,4 +1,4 @@
-data/
 *.o
 main
 exec
+testing_net/
