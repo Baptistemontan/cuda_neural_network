@@ -177,4 +177,30 @@ namespace ActivationCuda {
             v[i] = sigmoid_prime(v[i]);
         }
     }
+
+    // SPECIFIC IMPLEMENTATION
+
+    template<typename T, std::size_t SIZE, std::size_t N_VEC>
+    __global__ void apply_relu_prime_mul(Vector<T, SIZE> (*out)[N_VEC], const Vector<T, SIZE> (*vec)[N_VEC], const Vector<T, SIZE> (*rhs)[N_VEC]) {
+        for(auto tid: TidRange2D(SIZE, N_VEC)) {
+			std::size_t i = tid.x;
+			std::size_t vec_i = tid.y;
+			const Vector<T, SIZE>& a = (*vec)[vec_i];
+			const Vector<T, SIZE>& b = (*rhs)[vec_i];
+			Vector<T, SIZE>& c = (*out)[vec_i];
+            c[i] = relu_prime(a[i]) * b[i];
+        }
+    }
+
+    template<typename T, std::size_t SIZE, std::size_t N_VEC>
+    __global__ void apply_sigmoid_prime_mul(Vector<T, SIZE> (*out)[N_VEC], const Vector<T, SIZE> (*vec)[N_VEC], const Vector<T, SIZE> (*rhs)[N_VEC]) {
+        for(auto tid: TidRange2D(SIZE, N_VEC)) {
+			std::size_t i = tid.x;
+			std::size_t vec_i = tid.y;
+			const Vector<T, SIZE>& a = (*vec)[vec_i];
+			const Vector<T, SIZE>& b = (*rhs)[vec_i];
+			Vector<T, SIZE>& c = (*out)[vec_i];
+            c[i] = sigmoid_prime(a[i]) * b[i];
+        }
+    }
 }

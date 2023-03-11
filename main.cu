@@ -33,12 +33,12 @@ int main() {
 
 	net.train_batch_cuda(training_imgs, epochs, number_training_imgs, (float)0.7, (float)0.9, ActivationCuda::Relu);
 
-	std::ofstream output_file(SAVE_FILE_NAME, std::ios::out | std::ios::binary | std::ios::trunc);
-	if(!output_file) {
-		throw std::runtime_error("unable to open the output file");
-	}
-	net.save_binary(output_file);
-	output_file.close();
+	// std::ofstream output_file(SAVE_FILE_NAME, std::ios::out | std::ios::binary | std::ios::trunc);
+	// if(!output_file) {
+	// 	throw std::runtime_error("unable to open the output file");
+	// }
+	// net.save_binary(output_file);
+	// output_file.close();
 	
 	imgs_free(training_imgs, number_training_imgs);
 

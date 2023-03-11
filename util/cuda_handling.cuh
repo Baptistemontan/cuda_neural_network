@@ -220,3 +220,34 @@ private:
     std::size_t start;
 };
 
+struct KernelParams {
+public:
+    KernelParams(std::size_t operations_count) {
+        int maxThreadsPerBlock = getMaxThreadsPerBlock();
+        if(operations_count < maxThreadsPerBlock) {
+            this->bc = 1;
+            this->tc = operations_count;
+        } else {
+            this->bc = operations_count / maxThreadsPerBlock;
+            this->tc = maxThreadsPerBlock;
+        }
+    };
+    KernelParams(std::size_t operations_count, int maxThreadsPerBlock) {
+        if(operations_count < maxThreadsPerBlock) {
+            this->bc = 1;
+            this->tc = operations_count;
+        } else {
+            this->bc = operations_count / maxThreadsPerBlock;
+            this->tc = maxThreadsPerBlock;
+        }
+    };
+    static int getMaxThreadsPerBlock() {
+        cudaDeviceProp properties;
+        cudaGetDeviceProperties(&properties, 0);
+        return properties.maxThreadsPerBlock;
+    }
+
+    std::size_t bc;
+    std::size_t tc;
+};
+
