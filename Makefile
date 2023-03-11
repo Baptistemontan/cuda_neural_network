@@ -7,8 +7,8 @@ HEADERS = $(wildcard matrix/*.hpp neural/*.hpp util/*.hpp *.hpp)
 CUDA_HEADERS = $(wildcard matrix/*.cuh neural/*.cuh util/*.cuh *.cuh)
 CPP_OBJ = ${CPP_SOURCES:.cpp=.o}
 CUDA_OBJ = ${CUDA_SOURCES:.cu=.o}
-CFLAGS = 
-CUDA_FLAGS = 
+CFLAGS = -lm -O3
+CUDA_FLAGS = -O3
 
 
 EXEC = exec
@@ -21,8 +21,8 @@ default: ${EXEC}
 time: ${EXEC}
 	time ./${EXEC}
 
-${EXEC}: ${CUDA_OBJ}
-	${CUDAC} ${CFLAGS} $^ -o $@ -lm
+${EXEC}: ${CUDA_OBJ} ${CUDA_HEADERS}
+	${CUDAC} ${CUDA_OBJ} -o $@ ${CFLAGS}
 
 # ${EXEC_GPU}: ${OBJ} ${CUDA_OBJ} ${MAIN_GPU_OBJ}
 # 	${CUDAC} ${CUDA_FLAGS} $^ -o $@ -lm -L/usr/local/cuda-12.0/lib64/stubs -lcuda -L/usr/local/cuda-12.0/lib64 -lcudart -lcudadevrt
@@ -32,11 +32,11 @@ ${EXEC}: ${CUDA_OBJ}
 
 # Generic rules
 %.o: %.cpp
-	${CC} ${CFLAGS} -c $< -o $@ -lm
+	${CC} -c $< -o $@ ${CFLAGS}
 
 # Generic cuda rules
 %.o: %.cu
-	${CUDAC} ${CUDA_FLAGS} -dc $< -o $@
+	${CUDAC} -dc $< -o $@ ${CUDA_FLAGS}
 
 clean:
 	rm ${CPP_OBJ} ${CUDA_OBJ} ${EXEC}

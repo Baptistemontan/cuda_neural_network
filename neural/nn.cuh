@@ -183,7 +183,7 @@ public:
 		CHECK_SYNC;
 	}
 
-	template<std::size_t BATCH_SIZE = 50>
+	template<std::size_t BATCH_SIZE>
 	void train_batch_cuda(
 		Img* imgs,
 		std::size_t epochs,
@@ -211,7 +211,7 @@ public:
 		int maxThreadsPerBlock = KernelParams::getMaxThreadsPerBlock();
 		for(std::size_t e = 1; e <= epochs; e++) {
 			for (std::size_t i = 0; i < batch_size; i += BATCH_SIZE) {
-				// std::cout << "(CUDA) Epoch " << e << '/' << epochs << ", Img Batch No. " << ((i / BATCH_SIZE) + 1) << '/' << (batch_size / BATCH_SIZE) << std::endl;
+				std::cout << "(CUDA) Epoch " << e << '/' << epochs << ", Img Batch No. " << ((i / BATCH_SIZE) + 1) << '/' << (batch_size / BATCH_SIZE) << std::endl;
 				train_batch_inner(
 					output_delta,
 					hidden_delta,
