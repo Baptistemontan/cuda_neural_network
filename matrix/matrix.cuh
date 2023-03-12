@@ -1127,4 +1127,21 @@ namespace MatrixCuda {
             a[row][col] += b[row][col];
         }
     }
+
+	template<typename T, std::size_t ROWS, std::size_t COLS, std::size_t N_MAT>
+    __global__ void reduce_mul_add(
+		Matrix<T, ROWS, COLS> *lhs,
+		const Matrix<T, ROWS, COLS> (*rhs)[N_MAT],
+		const T* coef
+	) {
+		Matrix<T, ROWS, COLS>& a = *lhs;
+		const T& c = *coef;
+        for(auto tid: TidRange3D(ROWS, COLS, N_MAT)) {
+			std::size_t row = tid.x;
+			std::size_t col = tid.y;
+			std::size_t mat_i = tid.z;
+			const Matrix<T, ROWS, COLS>& b = (*rhs)[mat_i];
+            a[row][col] += b[row][col] * c;
+        }
+    }
 }
