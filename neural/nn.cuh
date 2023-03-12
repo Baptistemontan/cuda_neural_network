@@ -97,7 +97,6 @@ public:
 		}
 		inputs_buff.put(inputs);
 		expected_outputs_buff.put(expected_outputs);
-		// transposed_output_weights_buff.put(this->output_weights.transpose());
 
 		train(
 			hidden_delta_buff, 
@@ -515,7 +514,7 @@ private:
 		ActivationCuda::ActivationFunction activation_prime,
 		int maxThreadsPerBlock
 	) {
-		KernelParams pa(WEIGHTS_ROWS, maxThreadsPerBlock);
+		KernelParams pa(BATCH_SIZE * WEIGHTS_ROWS, maxThreadsPerBlock);
 		switch(activation_prime) {
 			case ActivationCuda::Relu:
 				ActivationCuda::apply_relu_prime_mul<<<pa.bc, pa.tc>>>(&multiplication_buff, &output, &errors);
@@ -526,7 +525,7 @@ private:
 			default:
 				break;
 		}
-		KernelParams pd(WEIGHTS_ROWS * WEIGHTS_COLS, maxThreadsPerBlock);
+		KernelParams pd(BATCH_SIZE * WEIGHTS_ROWS * WEIGHTS_COLS, maxThreadsPerBlock);
 		CHECK_SYNC;
 		VectorCuda::dot<<<pd.bc, pd.tc>>>(&delta, &multiplication_buff, &input);
 		CHECK_SYNC;
