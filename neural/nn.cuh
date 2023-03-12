@@ -65,8 +65,6 @@ public:
 
 	template<std::size_t BATCH_SIZE>
 	static void train_mini_batch(
-		CudaBox<Matrix<T, OUTPUT_SIZE, HIDDEN_SIZE>>& output_delta,
-		CudaBox<Matrix<T, HIDDEN_SIZE, INPUT_SIZE>>& hidden_delta,
 		CudaArray<Matrix<T, OUTPUT_SIZE, HIDDEN_SIZE>, BATCH_SIZE>& output_delta_buff,
 		CudaArray<Matrix<T, HIDDEN_SIZE, INPUT_SIZE>, BATCH_SIZE>& hidden_delta_buff,
 		CudaArray<Vector<T, INPUT_SIZE>, BATCH_SIZE>& inputs_buff,
@@ -79,17 +77,19 @@ public:
 		CudaArray<Vector<T, HIDDEN_SIZE>, BATCH_SIZE>& multiplication_buff_hidden,
 		CudaBox<Matrix<T, HIDDEN_SIZE, INPUT_SIZE>>& hidden_weights,
 		CudaBox<Matrix<T, OUTPUT_SIZE, HIDDEN_SIZE>>& output_weights,
-		CudaBox<Matrix<T, HIDDEN_SIZE, OUTPUT_SIZE>>& transposed_output_weights,
-		Img* imgs,
+		CudaBox<Matrix<T, HIDDEN_SIZE, OUTPUT_SIZE>>& transposed_output_weights_buff,
+		const CudaBox<T>& coef,
+		const Img* imgs,
 		ActivationCuda::ActivationFunction activation,
 		int maxThreadsPerBlock
 	) {
-		Matrix<T, HIDDEN_SIZE, INPUT_SIZE> hidden_delta_zero(0);
-		Matrix<T, OUTPUT_SIZE, HIDDEN_SIZE> output_delta_zero(0);
+		KernelParams pt(HIDDEN_SIZE * OUTPUT_SIZE, maxThreadsPerBlock);
+		MatrixCuda::transpose<<<pt.bc, pt.tc>>>(&transposed_output_weights_buff, &output_weights);
+
 		Vector<T, INPUT_SIZE> inputs[BATCH_SIZE];
 		Vector<T, OUTPUT_SIZE> expected_outputs[BATCH_SIZE];
 		for(size_t i = 0; i < BATCH_SIZE; i++) {
-			Img* cur_img = imgs + i;
+			const Img* cur_img = imgs + i;
 			Vector<T, OUTPUT_SIZE> expected_output(0);
 			expected_output[cur_img->label] = 1;
 			expected_outputs[i] = expected_output;
@@ -97,6 +97,8 @@ public:
 		}
 		inputs_buff.put(inputs);
 		expected_outputs_buff.put(expected_outputs);
+
+		CHECK_SYNC;
 
 		train(
 			hidden_delta_buff, 
@@ -109,21 +111,18 @@ public:
 			multiplication_buff_hidden,
 			hidden_weights,
 			output_weights,
-			transposed_output_weights,
+			transposed_output_weights_buff,
 			inputs_buff,
 			expected_outputs_buff,
 			activation,
 			maxThreadsPerBlock
 		);
 
-		hidden_delta.put(&hidden_delta_zero);
-		output_delta.put(&output_delta_zero);
-
 		KernelParams pro(BATCH_SIZE * HIDDEN_SIZE * OUTPUT_SIZE, maxThreadsPerBlock);
 		KernelParams prh(BATCH_SIZE * INPUT_SIZE * HIDDEN_SIZE, maxThreadsPerBlock);
 
-		MatrixCuda::reduce<<<pro.bc, pro.tc>>>(&output_delta, &output_delta_buff);
-		MatrixCuda::reduce<<<prh.bc, prh.tc>>>(&hidden_delta, &hidden_delta_buff);
+		MatrixCuda::reduce_mul_add<<<pro.bc, pro.tc>>>(&output_weights, &output_delta_buff, &coef);
+		MatrixCuda::reduce_mul_add<<<prh.bc, prh.tc>>>(&hidden_weights, &hidden_delta_buff, &coef);
 		CHECK_SYNC;
 	}
 
@@ -150,13 +149,11 @@ public:
 		ActivationCuda::ActivationFunction activation,
 		int maxThreadsPerBlock
 	) {
-		KernelParams pt(HIDDEN_SIZE * OUTPUT_SIZE, maxThreadsPerBlock);
 
-		MatrixCuda::transpose<<<pt.bc, pt.tc>>>(&transposed_output_weights_buff, &output_weights);
+		T coef = lr / BATCH_SIZE;
+		coef_buff.put(&coef);
 
 		train_mini_batch(
-			output_delta,
-			hidden_delta,
 			output_delta_buff,
 			hidden_delta_buff,
 			inputs_buff,
@@ -170,16 +167,11 @@ public:
 			hidden_weights,
 			output_weights,
 			transposed_output_weights_buff,
+			coef_buff,
 			imgs,
 			activation,
 			maxThreadsPerBlock
 		);
-		T coef = lr / BATCH_SIZE;
-		coef_buff.put(&coef);
-		KernelParams pmao(HIDDEN_SIZE * OUTPUT_SIZE, maxThreadsPerBlock), pmah(INPUT_SIZE * HIDDEN_SIZE, maxThreadsPerBlock);
-		MatrixCuda::muladd<<<pmao.bc, pmao.tc>>>(&output_weights, &output_delta, &coef_buff);
-		MatrixCuda::muladd<<<pmah.bc, pmah.tc>>>(&hidden_weights, &hidden_delta, &coef_buff);
-		CHECK_SYNC;
 	}
 
 	template<std::size_t BATCH_SIZE>
@@ -406,6 +398,8 @@ private:
 		CHECK_SYNC;
 	}
 
+	
+
 	template<std::size_t BATCH_SIZE>
 	static void feed_forward(
 		CudaArray<Vector<T, HIDDEN_SIZE>, BATCH_SIZE>& hidden_output,
@@ -417,30 +411,24 @@ private:
 		int maxThreadsPerBlock
 	) {
 		KernelParams pdi(BATCH_SIZE * HIDDEN_SIZE, maxThreadsPerBlock);
-		MatrixCuda::dot<<<pdi.bc, pdi.tc>>>(&hidden_output, &hidden_weights, &input);
-		CHECK_SYNC;
-		// can reuse pdi here, same number of ops
 		switch(activation) {
 			case ActivationCuda::Relu:
-				ActivationCuda::apply_relu<<<pdi.bc, pdi.tc>>>(&hidden_output);
+				ActivationCuda::dot_relu<<<pdi.bc, pdi.tc>>>(&hidden_output, &hidden_weights, &input);
 				break;
 			case ActivationCuda::Sigmoid:
-				ActivationCuda::apply_sigmoid<<<pdi.bc, pdi.tc>>>(&hidden_output);
+				ActivationCuda::dot_sigmoid<<<pdi.bc, pdi.tc>>>(&hidden_output, &hidden_weights, &input);
 				break;
 			default:
 				break;
 		}
 		KernelParams pdo(BATCH_SIZE * OUTPUT_SIZE, maxThreadsPerBlock);
 		CHECK_SYNC;
-		MatrixCuda::dot<<<pdo.bc, pdo.tc>>>(&final_output, &output_weights, &hidden_output);
-		CHECK_SYNC;
-		// can reuse pdo here, same number of ops
 		switch(activation) {
 			case ActivationCuda::Relu:
-				ActivationCuda::apply_relu<<<pdo.bc, pdo.tc>>>(&final_output);
+				ActivationCuda::dot_relu<<<pdo.bc, pdo.tc>>>(&final_output, &output_weights, &hidden_output);
 				break;
 			case ActivationCuda::Sigmoid:
-				ActivationCuda::apply_sigmoid<<<pdo.bc, pdo.tc>>>(&final_output);
+				ActivationCuda::dot_sigmoid<<<pdo.bc, pdo.tc>>>(&final_output, &output_weights, &hidden_output);
 				break;
 			default:
 				break;

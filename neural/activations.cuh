@@ -203,4 +203,45 @@ namespace ActivationCuda {
             c[i] = sigmoid_prime(a[i]) * b[i];
         }
     }
+
+    template<typename T, std::size_t ROWS, std::size_t COLS, std::size_t N_MAT>
+	__global__ void dot_relu(
+		Vector<T, ROWS> (*out)[N_MAT],
+		const Matrix<T, ROWS, COLS> *lhs,
+		const Vector<T, COLS> (*rhs)[N_MAT]
+	) {
+		const Matrix<T, ROWS, COLS>& a = *lhs;
+		for(auto tid: TidRange2D(ROWS, N_MAT)) {
+			std::size_t row = tid.x;
+			std::size_t mat_i = tid.y;
+			const Vector<T, COLS>& b = (*rhs)[mat_i];
+			Vector<T, ROWS>& c = (*out)[mat_i];
+			T sum = T();
+			for(size_t col = 0; col < COLS; col++) {
+				sum += a[row][col] * b[col];
+			}
+			c[row] = relu(sum);
+		}
+	}
+
+    template<typename T, std::size_t ROWS, std::size_t COLS, std::size_t N_MAT>
+	__global__ void dot_sigmoid(
+		Vector<T, ROWS> (*out)[N_MAT],
+		const Matrix<T, ROWS, COLS> *lhs,
+		const Vector<T, COLS> (*rhs)[N_MAT]
+	) {
+		const Matrix<T, ROWS, COLS>& a = *lhs;
+		for(auto tid: TidRange2D(ROWS, N_MAT)) {
+			std::size_t row = tid.x;
+			std::size_t mat_i = tid.y;
+			const Vector<T, COLS>& b = (*rhs)[mat_i];
+			Vector<T, ROWS>& c = (*out)[mat_i];
+			T sum = T();
+			for(size_t col = 0; col < COLS; col++) {
+				sum += a[row][col] * b[col];
+			}
+			c[row] = sigmoid(sum);
+		}
+	}
+    
 }
